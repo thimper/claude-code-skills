@@ -1,9 +1,9 @@
-# Context: Create a PR targeting the base branch (auto-detected)
-# Usage: /gh-pr [issue-numbers] [optional-context]
-# Examples:
-#   /gh-pr              — create PR without linked issues
-#   /gh-pr 12 34        — link issues #12 and #34
-#   /gh-pr 12,34,56     — link issues #12, #34, and #56
+---
+name: gh-pr
+description: Create a PR targeting the auto-detected base branch, with optional issue linking and automatic review monitoring.
+argument-hint: "[issue-numbers] [optional-context]"
+disable-model-invocation: true
+---
 
 ## Execution rules (IMPORTANT)
 
@@ -23,14 +23,14 @@ Store the result as `BASE_BRANCH` for all subsequent steps.
 ## Step 1: Parse arguments
 
 Parse the remaining arguments — extract any numbers (separated by spaces, commas, or both) as GitHub issue numbers. Everything else is optional context.
-- If NO issue numbers were provided, ask: "关联 issue 编号？(输入编号，或直接回车跳过)"
+- If NO issue numbers were provided, ask: "Link issue numbers? (enter numbers, or press enter to skip)"
   - If user provides numbers, use them as issue numbers.
   - If user presses enter / says no / says skip, continue without issue numbers.
 
 ## Step 2: Check uncommitted changes
 
 Check if there are uncommitted changes (`git status`).
-- If there are staged or unstaged tracked file changes, or untracked files that look project-relevant: list them and ask "要先提交这些修改吗？(y/n)"
+- If there are staged or unstaged tracked file changes, or untracked files that look project-relevant: list them and ask "Commit these changes first? (y/n)"
   - If yes: stage the relevant files, commit (ask for commit message or auto-generate), then continue.
   - If no: continue without committing.
 
@@ -74,6 +74,6 @@ gh pr create --base $BASE_BRANCH --title "<TITLE>" --body "<BODY>"
 
 After the PR is created successfully, capture the PR number from the output. Then immediately start autonomous monitoring:
 
-> PR #<NUMBER> 已创建，启动自动监控评审模式...
+> PR #<NUMBER> created, starting auto review-monitor mode...
 
 Invoke `/loop 1m /gh-pr-watch <NUMBER>` to begin the autonomous review-fix-reply loop. This will poll every 1 minute, automatically fix review comments, push commits, reply to reviewers, and stop when the PR is merged or closed.

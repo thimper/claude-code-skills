@@ -1,6 +1,9 @@
-# PR Watch — Auto-monitor and fix review comments
-# Usage: /gh-pr-watch [PR_NUMBER]
-# Designed to run as a single pass — use with `/loop 1m /gh-pr-watch` for continuous monitoring.
+---
+name: gh-pr-watch
+description: Auto-monitor a PR, fix review comments, push fixes, and reply to reviewers. Use with `/loop 1m /gh-pr-watch` for continuous monitoring.
+argument-hint: "[PR_NUMBER]"
+disable-model-invocation: true
+---
 
 ## Execution rules (IMPORTANT)
 
@@ -19,16 +22,17 @@
 Run: `gh pr view <PR#> --json state,url,title,mergedAt -q '{state: .state, url: .url, title: .title}'`
 
 - If `MERGED`:
-  1. Print "✅ PR #<N> 已合并！"
+  1. Print "PR #<N> merged!"
   2. Clean up branches:
-     - Get the current branch name and the merged branch name: `gh pr view <PR#> --json headRefName -q .headRefName`
-     - Switch to the base branch first: `git checkout claude/event-recording-search-app-fh3vy && git pull origin claude/event-recording-search-app-fh3vy`
+     - Get the merged branch name: `gh pr view <PR#> --json headRefName -q .headRefName`
+     - Get the base branch name: `gh pr view <PR#> --json baseRefName -q .baseRefName`
+     - Switch to the base branch: `git checkout <base-branch> && git pull origin <base-branch>`
        - If checkout fails due to untracked files conflicting, temporarily move them to `/tmp/backup-scripts/`, complete checkout+pull, then copy them back.
      - Delete the local branch: `git branch -d <branch-name>` (use `-D` if `-d` fails)
      - Delete the remote branch: `git push origin --delete <branch-name>`
-     - Print "🧹 已清理本地和远程分支: <branch-name>"
+     - Print "Cleaned up local and remote branch: <branch-name>"
   3. Use `CronList` to find the scheduled task for this watch, and `CronDelete` to remove it. Done.
-- If `CLOSED`: print "❌ PR #<N> 已关闭", then use `CronList` to find the scheduled task for this watch, and `CronDelete` to remove it. Done.
+- If `CLOSED`: print "PR #<N> closed", then use `CronList` to find the scheduled task for this watch, and `CronDelete` to remove it. Done.
 - If `OPEN`: continue to next step.
 
 ## Step 3: Fetch all comments and reviews
@@ -49,7 +53,7 @@ Get the current git user: `gh api user --jq .login`
 
 Filter out:
 - Comments authored by yourself (the bot/current user)
-- Comments that have already been addressed (check if there's a reply from you containing "Fixed in" or "已修复" below the comment)
+- Comments that have already been addressed (check if there's a reply from you containing "Fixed in" or "fixed" below the comment)
 
 Track which comments are new vs already processed by checking your existing replies.
 
@@ -91,13 +95,13 @@ Categorize each new comment/review:
 - **Code issues in files NOT in the PR diff** — if the reviewer points out a real bug or improvement in related code, fix it in this PR too. Do not dismiss with "not in scope".
 
 ### Category C — Verification or discussion (respond substantively)
-- If the reviewer claims code is wrong → **verify against SDK docs, official headers (`hardware/jz-t23-sdk/`), or authoritative sources** before responding. Reply with concrete evidence (file paths, code snippets, official definitions).
+- If the reviewer claims code is wrong → **verify against SDK docs, official headers, or authoritative sources** before responding. Reply with concrete evidence (file paths, code snippets, official definitions).
 - Questions like "why did you choose X?" → provide a substantive technical explanation, not just "noted".
 - Architectural or design discussions → give your technical analysis and recommendation.
 
 ### Category D — Checklist FAIL items
 Items from the review checklist (Step 3.1) with `FAIL` status. These require concrete fixes:
-- `tests: FAIL` → add or update tests covering the changed code paths (unit tests, integration tests, or both as appropriate)
+- `tests: FAIL` → add or update tests covering the changed code paths
 - `safety: FAIL` → fix fail-open paths, add guards, ensure fail-closed behavior
 - `security: FAIL` → fix injection, auth, crypto, or other security regressions
 - `correctness: FAIL` → fix logic errors, edge cases, or wrong behavior
@@ -152,21 +156,20 @@ For each fixed comment, reply on the PR so the reviewer knows it's addressed:
 
 **For inline review comments** (has `path` and `line`):
 ```bash
-# Reply to the specific review thread
-gh api repos/{owner}/{repo}/pulls/<PR#>/comments/<comment_id>/replies -f body="已修复 ✅ (<short-sha>): <one-line description>"
+gh api repos/{owner}/{repo}/pulls/<PR#>/comments/<comment_id>/replies -f body="Fixed (<short-sha>): <one-line description>"
 ```
 
 **For top-level review with CHANGES_REQUESTED**:
 ```bash
-gh pr comment <PR#> --body "已处理评审意见，修复已推送：
+gh pr comment <PR#> --body "Review comments addressed, fixes pushed:
 $(git log --oneline -<N> | head -<N>)
 
-请再次审阅 🙏"
+Please re-review."
 ```
 
 **For general conversation comments**:
 ```bash
-gh pr comment <PR#> --body "已修复 ✅ (<short-sha>): <one-line description>"
+gh pr comment <PR#> --body "Fixed (<short-sha>): <one-line description>"
 ```
 
 **For Category C (verification/discussion) comments** — reply with evidence:
@@ -176,24 +179,24 @@ gh pr comment <PR#> --body "<substantive response with evidence: SDK references,
 
 **For Category D (checklist FAIL items)** — reply with a summary of all checklist fixes:
 ```bash
-gh pr comment <PR#> --body "Checklist FAIL 项已修复 ✅
+gh pr comment <PR#> --body "Checklist FAIL items fixed:
 
 $(for each fixed FAIL item:)
 - **<item>**: <one-line description of fix> (<short-sha>)
 
-请重新审阅 🙏"
+Please re-review."
 ```
 
 ## Step 8: Print status and exit
 
 Print a concise status line:
 ```
-[PR Watch #<N>] ✅ <X> comments processed | <Y> fixes pushed | <Z> replied with evidence | checklist: <F> FAIL fixed | waiting for next review...
+[PR Watch #<N>] <X> comments processed | <Y> fixes pushed | <Z> replied with evidence | checklist: <F> FAIL fixed | waiting for next review...
 ```
 
 Or if nothing new:
 ```
-[PR Watch #<N>] ⏳ no new comments | waiting...
+[PR Watch #<N>] no new comments | waiting...
 ```
 
 Then exit this iteration. The `/loop` will re-invoke after the configured interval.

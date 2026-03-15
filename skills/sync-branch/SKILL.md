@@ -1,6 +1,9 @@
-# Sync Branch After PR Merge
-
-PR 合并后同步本地分支到远程最新代码。
+---
+name: sync-branch
+description: Sync local branch to remote latest after PR merge. Fetches and hard-resets to the base branch.
+argument-hint: "[branch-name]"
+disable-model-invocation: true
+---
 
 ## Execution rules (IMPORTANT)
 
@@ -19,13 +22,13 @@ Store the result as `BASE_BRANCH`.
 
 ## Instructions
 
-1. 获取远程最新代码并重置本地分支：
+1. Fetch remote and reset local branch:
 
 ```bash
 git fetch origin $BASE_BRANCH && git reset --hard origin/$BASE_BRANCH
 ```
 
-2. 显示最新提交确认同步成功：
+2. Show latest commits to confirm sync:
 
 ```bash
 git log --oneline -5
@@ -33,6 +36,6 @@ git log --oneline -5
 
 ## Note
 
-- 此命令会丢弃本地未提交的更改
-- 适用于 PR 已合并后同步本地分支
-- 目标分支自动从 upstream tracking 检测，也可通过参数手动指定
+- This will discard local uncommitted changes
+- Use after PR has been merged to sync local branch
+- Target branch auto-detected from upstream tracking, or specify via argument

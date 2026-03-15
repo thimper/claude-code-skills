@@ -1,4 +1,9 @@
-# Context: Rebase current branch onto its base branch (auto-detected)
+---
+name: rebase-api
+description: Rebase current branch onto its base branch (auto-detected from upstream tracking), with automatic conflict resolution.
+argument-hint: "[branch-name]"
+disable-model-invocation: true
+---
 
 ## Execution rules (IMPORTANT)
 
