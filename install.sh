@@ -34,15 +34,30 @@ has_wrapper() {
   grep -qF "$WRAPPER_MARKER" "$ZSHRC" 2>/dev/null
 }
 
+# Check if a claude() function referencing claude-skills already exists (any variant)
+has_claude_skills_func() {
+  grep -q 'claude()' "$ZSHRC" 2>/dev/null && grep -q 'claude-skills' "$ZSHRC" 2>/dev/null
+}
+
 install() {
   # Step 1: Ensure repo is under ~/claude-skills/
   if [[ "$SCRIPT_DIR" != "$SKILLS_BASE"/* ]]; then
-    echo -e "${YELLOW}This repo is not under ~/claude-skills/.${NC}"
-    echo -e "Symlinking: ${GREEN}$SKILLS_BASE/$REPO_NAME${NC} -> $SCRIPT_DIR"
     mkdir -p "$SKILLS_BASE"
-    if [ -L "$SKILLS_BASE/$REPO_NAME" ] || [ -e "$SKILLS_BASE/$REPO_NAME" ]; then
+    # Check if any existing symlink already points to this repo
+    local existing_link=""
+    for link in "$SKILLS_BASE"/*/; do
+      link="${link%/}"
+      if [ -L "$link" ] && [ "$(readlink "$link")" = "$SCRIPT_DIR" ]; then
+        existing_link="$link"
+        break
+      fi
+    done
+    if [ -n "$existing_link" ]; then
+      echo -e "Already linked: ${GREEN}$existing_link${NC} -> $SCRIPT_DIR"
+    elif [ -L "$SKILLS_BASE/$REPO_NAME" ] || [ -e "$SKILLS_BASE/$REPO_NAME" ]; then
       echo -e "  ${YELLOW}skip${NC} $SKILLS_BASE/$REPO_NAME already exists"
     else
+      echo -e "Symlinking: ${GREEN}$SKILLS_BASE/$REPO_NAME${NC} -> $SCRIPT_DIR"
       ln -s "$SCRIPT_DIR" "$SKILLS_BASE/$REPO_NAME"
       echo -e "  ${GREEN}linked${NC} $SKILLS_BASE/$REPO_NAME"
     fi
@@ -53,6 +68,26 @@ install() {
   # Step 2: Add wrapper function to .zshrc
   if has_wrapper; then
     echo -e "${YELLOW}claude wrapper already in ~/.zshrc, skipping.${NC}"
+  elif has_claude_skills_func; then
+    # Replace existing claude-skills wrapper with standardized version
+    echo -e "${YELLOW}Found existing claude-skills wrapper, replacing with standard version...${NC}"
+    local tmp
+    tmp=$(mktemp)
+    awk '
+      /^#.*claude-skills/ || /^#.*claude skills/ { marker=1; next }
+      /^claude\(\)/ && !marker { marker=1 }
+      marker && /^claude\(\)/ { infunc=1; next }
+      marker && !infunc { infunc=1; next }
+      infunc && /^\}/ { infunc=0; marker=0; next }
+      infunc { next }
+      { print }
+    ' "$ZSHRC" > "$tmp"
+    # Remove trailing blank lines
+    sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' "$tmp" > "$ZSHRC"
+    rm "$tmp"
+    echo "" >> "$ZSHRC"
+    echo "$WRAPPER_FUNC" >> "$ZSHRC"
+    echo -e "${GREEN}Replaced with standard claude wrapper in ~/.zshrc${NC}"
   else
     echo "" >> "$ZSHRC"
     echo "$WRAPPER_FUNC" >> "$ZSHRC"
@@ -65,27 +100,37 @@ install() {
 }
 
 uninstall() {
-  # Step 1: Remove repo symlink from ~/claude-skills/ (only if it's a symlink)
-  local target="$SKILLS_BASE/$REPO_NAME"
-  if [ -L "$target" ]; then
-    rm "$target"
-    echo -e "${RED}Removed${NC} symlink $target"
-  elif [ -d "$target" ] && [ "$target" = "$SCRIPT_DIR" ]; then
-    echo -e "${YELLOW}Repo is directly in ~/claude-skills/, not removing directory.${NC}"
-    echo -e "Remove manually: rm -rf $target"
+  # Step 1: Remove repo symlink from ~/claude-skills/ (only if it's a symlink pointing to this repo)
+  local found=0
+  for link in "$SKILLS_BASE"/*/; do
+    link="${link%/}"
+    if [ -L "$link" ] && [ "$(readlink "$link")" = "$SCRIPT_DIR" ]; then
+      rm "$link"
+      echo -e "${RED}Removed${NC} symlink $link"
+      found=1
+    fi
+  done
+  if [ "$found" -eq 0 ]; then
+    local target="$SKILLS_BASE/$REPO_NAME"
+    if [ -d "$target" ] && [ "$target" = "$SCRIPT_DIR" ]; then
+      echo -e "${YELLOW}Repo is directly in ~/claude-skills/, not removing directory.${NC}"
+      echo -e "Remove manually: rm -rf $target"
+    else
+      echo -e "${YELLOW}No symlink found for this repo in ~/claude-skills/${NC}"
+    fi
   fi
 
   # Step 2: Remove wrapper function from .zshrc
-  if has_wrapper; then
-    # Remove the marker line and the function block
+  if has_wrapper || has_claude_skills_func; then
     local tmp
     tmp=$(mktemp)
-    awk -v marker="$WRAPPER_MARKER" '
-      $0 == marker { skip=1; next }
-      skip && /^claude\(\)/ { next }
-      skip && /^\{/ { next }
-      skip && /^\}/ { skip=0; next }
-      skip { next }
+    awk '
+      /^#.*claude-skills/ || /^#.*claude skills/ { marker=1; next }
+      /^claude\(\)/ && !marker { marker=1 }
+      marker && /^claude\(\)/ { infunc=1; next }
+      marker && !infunc { infunc=1; next }
+      infunc && /^\}/ { infunc=0; marker=0; next }
+      infunc { next }
       { print }
     ' "$ZSHRC" > "$tmp"
     # Remove trailing blank lines left behind
