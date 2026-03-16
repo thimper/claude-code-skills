@@ -16,7 +16,13 @@ disable-model-invocation: true
 Determine the PR target branch using this priority:
 1. If `$ARGUMENTS` contains `--base <branch>`, use that branch and remove it from arguments.
 2. Read `.claude/workspace.json` → use `base_branch` field if it exists.
-3. Fall back to the repo's default branch: `gh repo view --json defaultBranchRef -q .defaultBranchRef.name`
+3. Detect by git history — find which remote branch the current branch was forked from:
+   - Run `git fetch --all` first.
+   - For each remote branch (`git branch -r --format='%(refname:short)' | grep '^origin/' | grep -v HEAD`), skip the current branch's own remote (e.g. skip `origin/feat/foo` if current branch is `feat/foo`).
+   - Compute `git merge-base HEAD <remote-branch>` for each candidate.
+   - Pick the remote branch whose merge-base commit is closest to HEAD (i.e. has the fewest commits between merge-base and HEAD, computed via `git rev-list --count <merge-base>..HEAD`).
+   - Strip the `origin/` prefix and use it as the base branch.
+4. Fall back to the repo's default branch: `gh repo view --json defaultBranchRef -q .defaultBranchRef.name`
 
 Store the result as `BASE_BRANCH` for all subsequent steps.
 
