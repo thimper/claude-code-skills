@@ -35,6 +35,11 @@ Parse the remaining arguments — extract any numbers (separated by spaces, comm
 
 ## Step 2: Check uncommitted changes
 
+**Before anything else**, restore auto-generated VERSION files that should not be committed:
+```bash
+git checkout -- hardware/firmware-ac792/VERSION 2>/dev/null
+```
+
 Check if there are uncommitted changes (`git status`).
 - If there are staged or unstaged tracked file changes, or untracked files that look project-relevant: list them and ask "Commit these changes first? (y/n)"
   - If yes: stage the relevant files, commit (ask for commit message or auto-generate), then continue.
@@ -76,10 +81,15 @@ Directly create the PR (no confirmation needed):
 gh pr create --base $BASE_BRANCH --title "<TITLE>" --body "<BODY>"
 ```
 
-## Step 7: Start monitoring
+## Step 7: Start monitoring (MANDATORY — do NOT skip)
 
-After the PR is created successfully, capture the PR number from the output. Then immediately start autonomous monitoring:
+**CRITICAL: This step MUST execute immediately after PR creation. Do NOT return control to the user or output any other response before completing this step.**
 
-> PR #<NUMBER> created, starting auto review-monitor mode...
+After the PR is created successfully, capture the PR number from the output. Then:
 
-Invoke `/loop 1m /gh-pr-watch <NUMBER>` to begin the autonomous review-fix-reply loop. This will poll every 1 minute, automatically fix review comments, push commits, reply to reviewers, and stop when the PR is merged or closed.
+1. Print: `PR #<NUMBER> created, starting auto review-monitor mode...`
+2. Invoke `/loop 2m /gh-pr-watch <NUMBER>` via the Skill tool to begin the autonomous review-fix-reply loop.
+
+This will poll every 2 minutes, automatically fix review comments, push commits, reply to reviewers, and stop when the PR is merged or closed.
+
+**You are NOT done until `/loop` has been invoked. If you respond to the user without starting the monitor, you have failed this skill.**
