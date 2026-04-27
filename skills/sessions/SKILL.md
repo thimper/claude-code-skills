@@ -9,7 +9,7 @@ List Claude Code conversation history and help resume a specific session.
 Run the session browser script:
 
 ```bash
-python3 ~/.claude/bin/claude-sessions.py $ARGUMENTS
+python3 "${CLAUDE_SKILL_DIR}/claude-sessions.py" $ARGUMENTS
 ```
 
 IMPORTANT: After running the script, reformat the output as a markdown table with these columns:
