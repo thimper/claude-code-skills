@@ -35,11 +35,6 @@ Parse the remaining arguments — extract any numbers (separated by spaces, comm
 
 ## Step 2: Check uncommitted changes
 
-**Before anything else**, restore auto-generated VERSION files that should not be committed:
-```bash
-git checkout -- hardware/firmware-ac792/VERSION 2>/dev/null
-```
-
 Check if there are uncommitted changes (`git status`).
 - If there are staged or unstaged tracked file changes, or untracked files that look project-relevant: list them and ask "Commit these changes first? (y/n)"
   - If yes: stage the relevant files, commit (ask for commit message or auto-generate), then continue.
